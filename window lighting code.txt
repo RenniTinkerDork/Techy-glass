@@ -1,0 +1,173 @@
+import time
+import audioio
+import board
+import busio
+import neopixel
+import adafruit_dotstar as dotstar
+import digitalio
+import adafruit_debouncer
+
+# using adafruit feather M4 and propmaker wing
+enable = digitalio.DigitalInOut(board.D10)
+enable.direction = digitalio.Direction.OUTPUT
+enable.value = True
+
+# adalogger with sdcard reader and digital clock
+spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
+cs = digitalio.DigitalInOut(board.SDA)
+# import adafruit_sdcard
+# import storage
+
+# sdcard = adafruit_sdcard.SDCard(spi, cs)
+# vfs = storage.VfsFat(sdcard)
+# storage.mount(vfs, "/sd")
+
+# using board led as inicator light
+led = digitalio.DigitalInOut(board.D13)
+led.direction = digitalio.Direction.OUTPUT
+
+# Using a DotStar Digital LED Strip with 150 LEDs connected to hardware SPI
+dots = dotstar.DotStar(board.A4, board.A5, 150, brightness=0.1,
+                       auto_write=False)
+
+# Using 4 neopixel UV LED Strips with 32 LEDs connected to board Neopixel port
+pixels = neopixel.NeoPixel(board.D5, 128, brightness=1, auto_write=False)
+
+pixels.fill = (0, 0, 0)
+pixels.show()
+dots.fill = (0, 0, 0)
+dots.show()
+
+pin = digitalio.DigitalInOut(board.A3)
+pin.direction = digitalio.Direction.INPUT
+pin.pull = digitalio.Pull.UP
+switch = adafruit_debouncer.Debouncer(pin)
+
+counter = 0
+loop_count = 0
+
+wave_file = open("StreetChicken.wav", "rb")
+wave = audioio.WaveFile(wave_file)
+audio = audioio.AudioOut(board.A0)
+
+n_pixels = len(pixels)
+n_dots = len(dots)
+
+switch_was = False
+needs_init = False
+
+def mode_1():
+    global mode_1_dot
+    global needs_init
+    if needs_init is True:
+        needs_init = False
+        led.value = False
+    dots[0: 150] = [(255, 255, 255,)] * 150
+    dots.show()
+    time.sleep(0.1)
+
+def mode_2():
+    global mode_2_dot
+    global needs_init
+    if needs_init is True:
+        needs_init = False
+        led.value = False
+    dots[0: 150] = [(0, 0, 0)] * 150
+    dots.show()
+    time.sleep(0.1)
+    dots[0: 150: 3] = [(255, 255, 255,)] * 50
+    dots.show()
+    time.sleep(0.1)
+
+mode_3_pixel = 0
+def mode_3():
+    global mode_3_pixel
+    global needs_init
+    if needs_init is True:
+        needs_init = False
+        led.value = False
+        mode_3_pixel = 0
+    pixels[mode_3_pixel] = (255, 255, 255)
+    pixels.show()
+    mode_3_pixel += 1
+    if mode_3_pixel == n_pixels:
+        mode_3_pixel = 0
+
+mode_4_state = 0
+mode_4_time = 0
+def mode_4():
+    global mode_4_dot
+    global needs_init
+    global now
+    global mode_4_time
+    global mode_4_state
+    if needs_init is True:
+        needs_init = False
+        led.value = False
+        audio.play(wave)
+        mode_4_time = time.monotonic()
+        mode_4_state = 0
+        dots[0: 15] = [(255, 255, 255)] * 15
+        dots.show()
+    now = time.monotonic()
+    if now - mode_4_time >= 34.1:  # time = 34.1
+        mode_4_state += 1
+        mode_4_time = now
+        if mode_4_state == 1:
+            dots[15: 30] = [(255, 255, 255)] * 15
+        elif mode_4_state == 2:
+            dots[30: 45] = [(255, 255, 255)] * 15
+        elif mode_4_state == 3:
+            dots[45: 60] = [(255, 255, 255)] * 15
+        elif mode_4_state == 4:
+            dots[60: 75] = [(255, 255, 255)] * 15
+        elif mode_4_state == 5:
+            dots[75: 90] = [(255, 255, 255)] * 15
+        elif mode_4_state == 6:
+            dots[90: 105] = [(255, 255, 255)] * 15
+        elif mode_4_state == 7:
+            dots[105: 120] = [(255, 255, 255)] * 15
+        elif mode_4_state == 8:
+            dots[120: 135] = [(255, 255, 255)] * 15
+        elif mode_4_state == 9:
+            dots[135: 150] = [(255, 255, 255)] * 15
+        elif mode_4_state == 10:
+            dots.brightness = (1)
+        elif mode_4_state == 12:
+            dots.brightness = (0.1)
+        dots.show()
+
+while True:
+    switch.update()
+    loop_count += 1
+    print("loop, ", loop_count)
+    print("counter, ", counter)
+    if switch_was is False and switch.value is False:
+        switch_was = True
+        led.value = True
+        dots[0: 150] = [(0, 0, 0)] * 150
+        dots.show()
+        pixels[0: 128] = [(0, 0, 0)] * 128
+        pixels.show()
+        counter += 1
+        needs_init = True
+        loop_count = 0
+    elif switch_was is True and switch.value is True:
+        switch_was = False
+    if counter == 0:
+        led.value = False
+        time.sleep(0.1)
+    elif counter == 1:
+        mode_1()
+        time.sleep(0.1)
+    elif counter == 2:
+        mode_2()
+        time.sleep(0.1)
+    elif counter == 3:
+        mode_3()
+        time.sleep(0.1)
+    elif counter == 4:
+        mode_4()
+        time.sleep(0.1)
+    elif counter > 4:
+        counter = 0
